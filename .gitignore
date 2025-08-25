@@ -1,0 +1,17 @@
+# IPython and Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*.ipynb_checkpoints*
+
+# Other Jupyter/IPython core files
+.jupyter/
+__pycache__/
+*.pyc
+*.pyo
+
+# VS Code:
+.vscode/
+
+# Virtual Environments:
+venv/
+.env/
+.env*/
