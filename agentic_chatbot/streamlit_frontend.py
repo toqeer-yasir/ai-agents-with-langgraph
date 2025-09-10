@@ -10,9 +10,9 @@
 #     initial_sidebar_state="collapsed"
 # )
 
-# # *******************************************************Utility functions
+# # functions # =====================================================
 # def generate_thread_id():
-#     return uuid.uuid4()
+#     return str(uuid.uuid4())
 
 # def reset_chat():
 #     thread_id = generate_thread_id()
@@ -24,13 +24,43 @@
 #         st.session_state['chat_threads'].insert(0, thread_id)
 
 # def load_recent_chat(thread_id):
-#     return chatbot.get_state(config={'configurable': {'thread_id': thread_id}}).values['messages']
+#     state = chatbot.get_state(config={'configurable': {'thread_id': thread_id}})
+#     return state.values['messages']
 
-# # ***********************************************************Session state
+# def display_message(message, role):
+#     container_class = "message-container-user" if role == "user" else "message-container-assistant"
+#     message_class = "user-message" if role == "user" else "assistant-message"
+    
+#     html = f"""
+#     <div class='{container_class}'>
+#         <div style='display:{"none" if role == "user" else "inline-block"};'>✨</div>
+#         <div class='{message_class}'>{message}</div>
+#         <div style='display:{"inline-block" if role == "user" else "none"};'>👤</div>
+#     </div>
+#     """
+#     st.markdown(html, unsafe_allow_html=True)
+
+# def show_typing_dots():
+#     """Display typing indicator animation."""
+#     dots_html = """
+#     <div class='message-container-assistant'>
+#         <div>✨</div>
+#         <div class='assistant-message'>
+#             <div class='typing-dots'>
+#                 <div class='dot'></div>
+#                 <div class='dot'></div>
+#                 <div class='dot'></div>
+#             </div>
+#         </div>
+#     </div>
+#     """
+#     return st.markdown(dots_html, unsafe_allow_html=True)
+
+# # session states # =====================================================
 # if 'thread_id' not in st.session_state:
 #     st.session_state['thread_id'] = generate_thread_id()
 
-# config = {'configurable': {'thread_id': st.session_state['thread_id']}}
+# CONFIG = {'configurable': {'thread_id': st.session_state['thread_id']}}
 
 # if 'message_history' not in st.session_state:
 #     st.session_state['message_history'] = []
@@ -38,53 +68,57 @@
 # if 'chat_threads' not in st.session_state:
 #     st.session_state['chat_threads'] = retrive_threads()
 
-# # **************************************************************Sidebar
+# # sidebar # =====================================================
 # with st.sidebar:
-#     if st.button('Start New Chat + ') and st.session_state['message_history']:
+#     if st.button('Start New Chat +') and st.session_state['message_history']:
 #         reset_chat()
+    
 #     st.title('Recent Chats')
 #     st.markdown('___')
+    
 #     for thread_id in st.session_state['chat_threads']:
 #         if st.button(f"{thread_id}"):
 #             st.session_state['thread_id'] = thread_id
 #             messages = load_recent_chat(thread_id)
 #             temp_messages = []
+            
 #             for message in messages:
 #                 role = 'user' if isinstance(message, HumanMessage) else 'assistant'
 #                 temp_messages.append({"role": role, "content": message.content})
+            
 #             st.session_state['message_history'] = temp_messages
 
-# # **************************************************************Main page
-# st.markdown(f"""
-#             <div class='title'>
-#             <h2>Agentic AI Chatbot 🤖</h2>
-#             <p>'Toqeer's personal assistant'</p>
-#             </div>
-#     """, unsafe_allow_html=True)
+# # main page heading # =====================================================
+# st.markdown("""
+#     <div class='title'>
+#         <h2>Agentic AI Chatbot 🤖</h2>
+#         <p>'Toqeer's personal assistant'</p>
+#     </div>
+# """, unsafe_allow_html=True)
 
-# # Custom CSS
+# # custom css # =====================================================
 # st.markdown("""
 # <style>
 #     h2 {
-#         font-style:italic;
+#         font-style: italic;
 #     }
 #     p {
-#         color:gray;
-#         font-style:italic;        
+#         color: gray;
+#         font-style: italic;        
 #     }
-#     .title{
+#     .title {
 #         display: flex;
 #         justify-content: center;
-#         align-item:center;
-#         flex-direction:column;
-#         text-align:center;
+#         align-items: center;
+#         flex-direction: column;
+#         text-align: center;
 #     }
 #     .user-message {
 #         padding: 9px 16px 9px 12px;
 #         border-radius: 18px 0 18px 18px;
 #         background-color: #262730;
 #         color: white;
-#         margin: 8px 0 15px;
+#         margin: 13px 0 15px;
 #         display: inline-block;
 #         max-width: 100%;
 #         text-align: left;
@@ -96,7 +130,7 @@
 #         background-color: black;
 #         color: white;
 #         margin: 8px 0;
-#         margin-bottom:50px;
+#         margin-bottom: 50px;
 #         display: inline-block;
 #         max-width: 100%;
 #         text-align: left;
@@ -117,7 +151,7 @@
 #         display: inline-flex;
 #         align-items: center;
 #     }
-#     .dot {
+#      .dot {
 #         width: 6px;
 #         height: 6px;
 #         background-color: #888;
@@ -143,45 +177,21 @@
 #     }
 # </style>
 # """, unsafe_allow_html=True)
-# # Functin to display message
-# def display_message(message, role):
-#     container_class = "message-container-user" if role == "user" else "message-container-assistant"
-#     message_class = "user-message" if role == "user" else "assistant-message"
-    
-#     html = f"""
-#     <div class='{container_class}'>
-#         <div style='display:{"none" if role == "user" else "inline-block"};'>✨</div>
-#         <div class='{message_class}'>{message}</div>
-#         <div style='display:{"inline-block" if role == "user" else "none"};'>👤</div>
-#     </div>
-#     """
-#     st.markdown(html, unsafe_allow_html=True)
 
-# def show_typing_dots():
-#     dots_html = """
-#     <div class='message-container-assistant'>
-#         <div>✨</div>
-#         <div class='assistant-message'>
-#             <div class='typing-dots'>
-#                 <div class='dot'></div>
-#                 <div class='dot'></div>
-#                 <div class='dot'></div>
-#             </div>
-#         </div>
-#     </div>
-#     """
-#     return st.markdown(dots_html, unsafe_allow_html=True)
-
+# # display recent messages # =====================================================
 # for message in st.session_state.message_history:
 #     display_message(message['content'], message['role'])
 
+# # user input and processing # =====================================================
 # user_input = st.chat_input("Type here . . .")
 
 # if user_input:
+#     # add user message to history
 #     st.session_state.message_history.append({"role": "user", "content": user_input})
 #     add_thread_id(st.session_state['thread_id'])
 #     display_message(user_input, 'user')
 
+#     # Show typing indicator
 #     typing_placeholder = st.empty()
 #     with typing_placeholder.container():
 #         show_typing_dots()
@@ -195,18 +205,21 @@
 #         <div>✨</div>
 #         <div class='assistant-message'>
 #     """
-#     # Streaming functinality
-#     for message_chunk, metadata in chatbot.stream(msg, config=config, stream_mode='messages'):
-#         typing_placeholder.empty()
-#         if hasattr(message_chunk, 'content'):
-#             full_response += message_chunk.content
-#             assistant_container.markdown(
-#                 f"{message_container}{full_response}</div></div>", 
-#                 unsafe_allow_html=True
-#             )
+    
+#     # streaming functinality
+#     for message_chunk, metadata in chatbot.stream(msg, config=CONFIG, stream_mode='messages'):
+#             typing_placeholder.empty()
+            
+#             if hasattr(message_chunk, 'content') and message_chunk.content:
+#                 if hasattr(message_chunk, 'type') and 'AIMessageChunk' in str(type(message_chunk)):
+#                     full_response += message_chunk.content
+#                     assistant_container.markdown(
+#                         f"{message_container}{full_response}</div></div>", 
+#                         unsafe_allow_html=True
+#                     )
+    
+#     # add assistant response to history
 #     st.session_state.message_history.append({"role": "assistant", "content": full_response})
-
-
 
 
 import streamlit as st
@@ -222,7 +235,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# functions # =====================================================
+# =====================================================
+# UTILITY FUNCTIONS
+# =====================================================
 def generate_thread_id():
     """Generate a unique thread ID using UUID."""
     return str(uuid.uuid4())
@@ -263,7 +278,6 @@ def display_message(message, role):
     st.markdown(html, unsafe_allow_html=True)
 
 def show_typing_dots():
-    """Display typing indicator animation."""
     dots_html = """
     <div class='message-container-assistant'>
         <div>✨</div>
@@ -278,11 +292,13 @@ def show_typing_dots():
     """
     return st.markdown(dots_html, unsafe_allow_html=True)
 
-# session state inintialization # =====================================================
+# =====================================================
+# SESSION STATE INITIALIZATION
+# =====================================================
 if 'thread_id' not in st.session_state:
     st.session_state['thread_id'] = generate_thread_id()
 
-config = {'configurable': {'thread_id': st.session_state['thread_id']}}
+CONFIG = {'configurable': {'thread_id': st.session_state['thread_id']}}
 
 if 'message_history' not in st.session_state:
     st.session_state['message_history'] = []
@@ -290,7 +306,9 @@ if 'message_history' not in st.session_state:
 if 'chat_threads' not in st.session_state:
     st.session_state['chat_threads'] = retrive_threads()
 
-# custom css # =====================================================
+# =====================================================
+# CUSTOM CSS STYLING
+# =====================================================
 st.markdown("""
 <style>
     h2 {
@@ -338,7 +356,7 @@ st.markdown("""
         display: flex;
         flex-direction: column;
         justify-content: flex-end;
-        width: 100%;
+        width: fit-content;
     }
     .copy-btn {
         width: 2rem;
@@ -357,7 +375,9 @@ st.markdown("""
         padding: 9px 16px 9px 12px;
         display: inline-flex;
         align-items: center;
+        width: fit-content;
     }
+
     .dot {
         width: 6px;
         height: 6px;
@@ -385,7 +405,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# sidebar # =====================================================
+# =====================================================
+# SIDEBAR COMPONENT
+# =====================================================
 with st.sidebar:
     if st.button('Start New Chat +') and st.session_state['message_history']:
         reset_chat()
@@ -405,7 +427,9 @@ with st.sidebar:
             
             st.session_state['message_history'] = temp_messages
 
-# mainpage # =====================================================
+# =====================================================
+# MAIN PAGE CONTENT
+# =====================================================
 st.markdown("""
     <div class='title'>
         <h2>Agentic AI Chatbot 🤖</h2>
@@ -443,20 +467,18 @@ if user_input:
         <div class='assistant-message'>
     """
     
-    # Stream response from chatbot
-    for message_chunk, metadata in chatbot.stream(msg, config=config, stream_mode='messages'):
-        typing_placeholder.empty()
-        if hasattr(message_chunk, 'content'):
-            full_response += message_chunk.content
-            assistant_container.markdown(
-                f"""{message_container}{full_response}</div>
-                <button class='copy-btn'>
-                <svg viewBox="0 0 24 24">
-                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-                </svg>
-                </button></div>""", 
-                unsafe_allow_html=True
-            )
+
+    # streaming functinality
+    for message_chunk, metadata in chatbot.stream(msg, config=CONFIG, stream_mode='messages'):
+            typing_placeholder.empty()
+            
+            if hasattr(message_chunk, 'content') and message_chunk.content:
+                if hasattr(message_chunk, 'type') and 'AIMessageChunk' in str(type(message_chunk)):
+                    full_response += message_chunk.content
+                    assistant_container.markdown(
+                        f"{message_container}{full_response}</div></div>", 
+                        unsafe_allow_html=True
+                    )
     
     # Add assistant response to history
     st.session_state.message_history.append({"role": "assistant", "content": full_response})
