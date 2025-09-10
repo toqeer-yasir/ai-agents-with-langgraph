@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import AIMessage
 from typing import TypedDict, Annotated
 from dotenv import load_dotenv
 from langgraph.graph.message import add_messages
@@ -12,9 +12,9 @@ import os
 
 load_dotenv()
 
-model4title = model = ChatOpenAI(
-    # model="mistralai/mistral-7b-instruct", # Free model
-    model="mistralai/Mistral-7B-Instruct-v0.1", # Free model
+model = ChatOpenAI(
+    # model="mistralai/mistral-7b-instruct"
+    model="mistralai/Mistral-7B-Instruct-v0.1",
     openai_api_key=os.getenv("OPENROUTER_API_KEY"),
     openai_api_base="https://openrouter.ai/api/v1",
     temperature=0.1
@@ -28,11 +28,11 @@ def chat_node(state: ChatState):
     response = model.invoke(message)
     return {'messages': [AIMessage(content=response.content)]}
 
-# Define graph:
+# define graph:
 graph = StateGraph(ChatState)
-# Add nodes:
+# add nodes:
 graph.add_node('chat_node', chat_node)
-# Add edges:
+# add edges:
 graph.add_edge(START, 'chat_node')
 graph.add_edge('chat_node', END)
 
