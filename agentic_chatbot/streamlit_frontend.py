@@ -227,7 +227,7 @@ from chatbot_backend import chatbot, retrive_threads
 from langchain_core.messages import HumanMessage
 import uuid
 
-# Page configuration
+# page configuration
 st.set_page_config(
     page_title="Agentic AI Chatbot",
     page_icon="🤖",
@@ -235,9 +235,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# =====================================================
-# UTILITY FUNCTIONS
-# =====================================================
+# functions # =====================================================
 def generate_thread_id():
     """Generate a unique thread ID using UUID."""
     return str(uuid.uuid4())
@@ -292,13 +290,13 @@ def show_typing_dots():
     """
     return st.markdown(dots_html, unsafe_allow_html=True)
 
-# =====================================================
-# SESSION STATE INITIALIZATION
-# =====================================================
+# session states # =====================================================
 if 'thread_id' not in st.session_state:
     st.session_state['thread_id'] = generate_thread_id()
 
-CONFIG = {'configurable': {'thread_id': st.session_state['thread_id']}}
+CONFIG = {'configurable': {'thread_id': st.session_state['thread_id']},
+          'metadeta': {'thread_id': st.session_state['thread_id']},
+          'run_name': 'chat_turn'}
 
 if 'message_history' not in st.session_state:
     st.session_state['message_history'] = []
@@ -306,9 +304,7 @@ if 'message_history' not in st.session_state:
 if 'chat_threads' not in st.session_state:
     st.session_state['chat_threads'] = retrive_threads()
 
-# =====================================================
-# CUSTOM CSS STYLING
-# =====================================================
+# custom css # =====================================================
 st.markdown("""
 <style>
     h2 {
@@ -405,9 +401,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# =====================================================
-# SIDEBAR COMPONENT
-# =====================================================
+# sidebar # =====================================================
 with st.sidebar:
     if st.button('Start New Chat +') and st.session_state['message_history']:
         reset_chat()
@@ -427,9 +421,7 @@ with st.sidebar:
             
             st.session_state['message_history'] = temp_messages
 
-# =====================================================
-# MAIN PAGE CONTENT
-# =====================================================
+# main page # =====================================================
 st.markdown("""
     <div class='title'>
         <h2>Agentic AI Chatbot 🤖</h2>
@@ -437,28 +429,24 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Display message history
+# display message history
 for message in st.session_state.message_history:
     display_message(message['content'], message['role'])
 
-# Chat input
 user_input = st.chat_input("Type here . . .")
 
 if user_input:
-    # Add user message to history
     st.session_state.message_history.append({"role": "user", "content": user_input})
     add_thread_id(st.session_state['thread_id'])
     display_message(user_input, 'user')
 
-    # Show typing indicator
+    # typing dots animation
     typing_placeholder = st.empty()
     with typing_placeholder.container():
         show_typing_dots()
     
-    # Prepare message for chatbot
     msg = {'messages': [HumanMessage(content=user_input)]}
     
-    # Stream assistant response
     assistant_container = st.empty()
     full_response = ""
     message_container = """
@@ -476,9 +464,9 @@ if user_input:
                 if hasattr(message_chunk, 'type') and 'AIMessageChunk' in str(type(message_chunk)):
                     full_response += message_chunk.content
                     assistant_container.markdown(
-                        f"{message_container}{full_response}</div></div>", 
+                        f"{message_container}{full_response + ' |'}</div></div>", 
                         unsafe_allow_html=True
                     )
     
-    # Add assistant response to history
+    # add assistant response to history
     st.session_state.message_history.append({"role": "assistant", "content": full_response})
