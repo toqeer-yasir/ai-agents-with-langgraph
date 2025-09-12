@@ -464,7 +464,7 @@ if user_input:
                 if hasattr(message_chunk, 'type') and 'AIMessageChunk' in str(type(message_chunk)):
                     full_response += message_chunk.content
                     assistant_container.markdown(
-                        f"{message_container}{full_response + ' |'}</div></div>", 
+                        f"{message_container}{full_response + '┃'}</div></div>", 
                         unsafe_allow_html=True
                     )
     
