@@ -467,6 +467,11 @@ if user_input:
                         f"{message_container}{full_response + '┃'}</div></div>", 
                         unsafe_allow_html=True
                     )
+    # final update to remove '\' cursor:
+    assistant_container.markdown(
+        f"{message_container}{full_response}</div></div>",
+        unsafe_allow_html=True
+    )
     
     # add assistant response to history
     st.session_state.message_history.append({"role": "assistant", "content": full_response})
