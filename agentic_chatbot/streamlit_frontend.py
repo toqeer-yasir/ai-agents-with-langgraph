@@ -494,24 +494,44 @@ st.set_page_config(
 
 # functions # =====================================================
 def generate_thread_id():
-    """Generate a unique thread ID using UUID."""
+    """generate a unique thread ID using UUID."""
     return str(uuid.uuid4())
 
 def reset_chat():
-    """Reset the chat session with a new thread ID."""
+    """reset the chat session with a new thread ID."""
     thread_id = generate_thread_id()
     st.session_state['thread_id'] = thread_id
     st.session_state['message_history'] = []
 
 def add_thread_id(thread_id):
-    """Add a thread ID to the chat threads list if it doesn't exist."""
+    """add a thread ID to the chat threads list if it doesn't exist."""
     if thread_id not in st.session_state['chat_threads']:
         st.session_state['chat_threads'].insert(0, thread_id)
 
+
 def load_recent_chat(thread_id):
-    """Load messages from a specific thread."""
-    state = chatbot.get_state(config={'configurable': {'thread_id': thread_id}})
-    return state.values['messages']
+    """realoading recent chats from the threaed id."""
+    messages = chatbot.get_state(config={'configurable': {'thread_id': thread_id}}).values['messages']
+    
+    result = []
+    
+    for i, msg in enumerate(messages):
+        if 'HumanMessage' in str(type(msg)):
+            # adding human message:
+            result.append(msg)
+            
+            ai_messages = []
+            for future_msg in messages[i+1:]:
+                if 'HumanMessage' in str(type(future_msg)):
+                    break  # stop at next human message
+                if 'AIMessage' in str(type(future_msg)):
+                    ai_messages.append(future_msg)
+            # adding last ai message:
+            if ai_messages:
+                result.append(ai_messages[-1])
+    
+    return result
+
 
 def display_message(message, role):
     """Display a message with appropriate styling based on role."""
@@ -600,6 +620,7 @@ st.markdown("""
         color: #888;
     }
     .thinking-dots {
+        padding-top:8px;
         display: flex;
         gap: 3px;
     }
@@ -722,7 +743,7 @@ if user_input:
                     tool_names.append('Calculating')
                 elif 'rag' in tool_name or 'document' in tool_name:
                     tool_emojis.append('📚')
-                    tool_names.append('Searching documents')
+                    tool_names.append('Searching in documents')
                 else:
                     tool_emojis.append('🔧')
                     tool_names.append('Processing')
@@ -776,5 +797,5 @@ if user_input:
         """
         response_container.markdown(message_container, unsafe_allow_html=True)
     
-    # adding assistant response to history:
-    st.session_state.message_history.append({"role": "assistant", "content": full_response})
+        # adding assistant response to history:
+        st.session_state.message_history.append({"role": "assistant", "content": full_response})
