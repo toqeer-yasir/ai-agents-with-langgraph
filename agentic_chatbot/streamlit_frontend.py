@@ -1,8 +1,10 @@
 import streamlit as st
 from chatbot_backend import chatbot, retrieve_all_threads, submit_async_task 
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import HumanMessage, AIMessage
 import uuid
 import queue
+import time
+import markdown
 
 # page configuration
 st.set_page_config(
@@ -28,6 +30,25 @@ def add_thread_id(thread_id):
     if thread_id not in st.session_state['chat_threads']:
         st.session_state['chat_threads'].insert(0, thread_id)
 
+def get_conversation_title(thread_id):
+    """Get the first few words of the first user message for a thread."""
+    try:
+        messages = chatbot.get_state(config={'configurable': {'thread_id': thread_id}}).values['messages']
+        
+        # Find the first Human message in the conversation
+        for msg in messages:
+            if isinstance(msg, HumanMessage) and msg.content:
+                # Get first 4 words and add ellipsis
+                words = msg.content.split()[:4]
+                title = ' '.join(words)
+                if len(msg.content.split()) > 4:
+                    title += '...'
+                return title if title else "Empty message"
+        
+        # If no Human message found, return a default title
+        return "Empty chat"
+    except Exception as e:
+        return "Empty chat"
 
 def load_recent_chat(thread_id):
     """realoading recent chats from the threaed id."""
@@ -52,16 +73,17 @@ def load_recent_chat(thread_id):
     
     return result
 
-
 def display_message(message, role):
     """Display a message with appropriate styling based on role."""
+    html_content = markdown.markdown(message)
+    
     container_class = "message-container-user" if role == "user" else "message-container-assistant"
     message_class = "user-message" if role == "user" else "assistant-message"
     
     html = f"""
     <div class='{container_class}'>
         <div style='display:{"none" if role == "user" else "inline-block"};'>✨</div>
-        <div class='{message_class}'>{message}</div>
+        <div class='{message_class}'>{html_content}</div>
         <div style='display:{"inline-block" if role == "user" else "none"};'>👤</div>
     </div>
     """
@@ -79,6 +101,10 @@ if 'message_history' not in st.session_state:
 if 'chat_threads' not in st.session_state:
     st.session_state['chat_threads'] = retrieve_all_threads()
 
+# Store conversation titles to avoid recomputation
+if 'conversation_titles' not in st.session_state:
+    st.session_state['conversation_titles'] = {}
+
 # custom css # =====================================================
 st.markdown("""
 <style>
@@ -86,7 +112,7 @@ st.markdown("""
         font-style: italic;
     }
     p {
-        color: gray;
+        color: #FFFFFF;
         font-style: italic;        
     }
     .title {
@@ -97,7 +123,7 @@ st.markdown("""
         text-align: center;
     }
     .user-message {
-        padding: 9px 16px 9px 12px;
+        padding: 9px 16px 0 12px;
         border-radius: 18px 0 18px 18px;
         background-color: #262730;
         color: white;
@@ -133,14 +159,14 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 4px;
-        margin-bottom: 5px;
+        margin-bottom: 2px;
     }
     .thinking-text {
         font-style: italic;
         color: #888;
     }
     .thinking-dots {
-        padding-top:8px;
+        padding-top:9px;
         display: flex;
         gap: 3px;
     }
@@ -157,13 +183,20 @@ st.markdown("""
     .dot:nth-child(2) {
         animation-delay: -0.16s;
     }
-    .tool-line {
+    .tools {
         color: #888;
         font-size: 12px;
-        margin: 1px 0;
         font-family: monospace;
         line-height: 1.2;
-        padding-left: 10px;
+        padding-left: 16px;
+    }
+    .tool-line {
+        color: #888;
+        font-size: 10px;
+        margin: 1px 0;
+        font-family: monospace;
+        line-height: 1.4;
+        padding-left: 32px;
     }
     @keyframes typing {
         0%, 80%, 100% {
@@ -187,7 +220,13 @@ with st.sidebar:
     st.markdown('___')
     
     for thread_id in st.session_state['chat_threads']:
-        if st.button(f"{thread_id}"):
+        # Get or compute conversation title
+        if thread_id not in st.session_state['conversation_titles']:
+            st.session_state['conversation_titles'][thread_id] = get_conversation_title(thread_id)
+        
+        title = st.session_state['conversation_titles'][thread_id]
+        
+        if st.button(f"{title}", key=thread_id):
             st.session_state['thread_id'] = thread_id
             messages = load_recent_chat(thread_id)
             temp_messages = []
@@ -219,14 +258,21 @@ if user_input:
     add_thread_id(st.session_state['thread_id'])
     display_message(user_input, 'user')
 
+    # Update conversation title for current thread with the first user message
+    current_thread_id = st.session_state['thread_id']
+    words = user_input.split()[:4]
+    title = ' '.join(words)
+    if len(user_input.split()) > 4:
+        title += '...'
+    st.session_state['conversation_titles'][current_thread_id] = title
+
     # container for animation and response
     response_container = st.empty()
     
     msg = {'messages': [HumanMessage(content=user_input)]}
     
     full_response = ""
-    tool_emojis = []
-    tool_names = []
+    tools_set = set()
     
     # show thinking animation
     thinking_html = """
@@ -246,7 +292,6 @@ if user_input:
     """
     response_container.markdown(thinking_html, unsafe_allow_html=True)
     
-    # Create queue for async communication
     event_queue = queue.Queue()
 
     async def run_async_stream():
@@ -262,7 +307,7 @@ if user_input:
         finally:
             event_queue.put(None)
 
-    # Start the async stream
+    # async stream
     submit_async_task(run_async_stream())
     
     # Process events from the queue
@@ -278,29 +323,24 @@ if user_input:
         
         # handle tool messages 
         if isinstance(message_chunk, AIMessage) and hasattr(message_chunk, 'tool_calls') and message_chunk.tool_calls:
-            if tool_emojis:
-                tool_emojis.clear()
-                tool_names.clear()
+            if tools_set:
+                tools_set.clear()
             for tool_call in message_chunk.tool_calls:
                 tool_name = tool_call["name"].lower()
 
-                if 'tavily' in tool_name or 'search' in tool_name:
-                    tool_emojis.append('🔍')
-                    tool_names.append('Searching in web')
+                if 'tavily' in tool_name:
+                    tools_set.add(' 🔍Search')
                 elif 'calculator' in tool_name or 'math' in tool_name:
-                    tool_emojis.append('🧮')
-                    tool_names.append('Calculating')
-                elif 'file' in tool_name or 'system' in tool_name:
-                    tool_emojis.append('💻')
-                    tool_names.append('Accessing system')
+                    tools_set.add(' 🧮Calculator')
                 else:
-                    tool_emojis.append('🔧')
-                    tool_names.append('Processing')
+                    tools_set.add(f' 🔧{tool_name}')
                 
                 # build tool status display
+                tools= f"<div class='tools'>Using:</div>"
                 tool_lines = ""
-                for emoji, name in zip(tool_emojis, tool_names):
-                    tool_lines += f"<div class='tool-line'>└─{emoji} {name}</div>"
+                for tool in tools_set:
+                    tool_lines += f"<div class='tool-line'>└─{tool} tool</div>"
+                
                 
                 # update container with tool status
                 thinking_with_tools_html = f"""
@@ -315,6 +355,7 @@ if user_input:
                                 <span class='dot'></span>
                             </div>
                         </div>
+                        {tools}
                         {tool_lines}
                     </div>
                 </div>
@@ -323,27 +364,35 @@ if user_input:
         
         # stream ai response text
         if isinstance(message_chunk, AIMessage) and message_chunk.content:
-            full_response += message_chunk.content
-            
-            message_container = f"""
-            <div class='message-container-assistant'>
-                <div>✨</div>
-                <div class='assistant-message'>{full_response}┃</div>
-            </div>
-            """
-            
-            response_container.markdown(message_container, unsafe_allow_html=True)
-
+            new_content = message_chunk.content
+            if new_content and not new_content.isspace():
+                words = new_content.split()
+                for word in words:
+                    full_response += word + " "
+                    
+                    # Convert current content to HTML for proper markdown rendering
+                    html_content = markdown.markdown(full_response + "┃")
+                    
+                    message_container = f"""
+                    <div class='message-container-assistant'>
+                        <div>✨</div>
+                        <div class='assistant-message'>{html_content}</div>
+                    </div>
+                    """
+                    response_container.markdown(message_container, unsafe_allow_html=True)
+                    time.sleep(0.01)
+    
     # final update to remove cursor:
     if full_response:
+        html_content = markdown.markdown(full_response)
+        
         message_container = f"""
         <div class='message-container-assistant'>
             <div>✨</div>
-            <div class='assistant-message'>{full_response}</div>
+            <div class='assistant-message'>{html_content}</div>
         </div>
         """
         response_container.markdown(message_container, unsafe_allow_html=True)
     
         # adding assistant response to history:
         st.session_state.message_history.append({"role": "assistant", "content": full_response})
-
