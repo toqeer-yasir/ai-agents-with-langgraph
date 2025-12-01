@@ -46,15 +46,15 @@ def submit_async_task(coro):
     return _submit_async(coro)
 
 
-# Initialize LLM
 llm = ChatOpenAI(
     model="x-ai/grok-4.1-fast:free",
     openai_api_key=os.getenv("OPENROUTER_API_KEY"),
     openai_api_base="https://openrouter.ai/api/v1",
     temperature=0.6,
-    streaming=True
+    streaming=True,
+    max_retries=2,
+    timeout=30.0
 )
-
 
 # Tool definitions
 @tool()
@@ -78,17 +78,28 @@ search_tool = TavilySearch(
 
 client = MultiServerMCPClient(
     {   
-        'System Info Server': {
+        'System info.': {
             'transport': 'stdio',
             'command': 'python',
-            'args': ["/home/toqeer-yasir/Documents/repos/ai-agents-with-langgraph/agentic_chatbot/local_mcp_servers/system_info_server.py"]
+            'args': ["/home/toqeer-yasir/Documents/repos/ai-agents-with-langgraph/agentic_chatbot/local_mcp_servers/system_info_mcp_server.py"]
         },
 
         'File System': {
             'transport': 'stdio',
             'command': 'python',
-            'args': ["/home/toqeer-yasir/Documents/repos/ai-agents-with-langgraph/agentic_chatbot/local_mcp_servers/file_system.py"]
+            'args': ["/home/toqeer-yasir/Documents/repos/ai-agents-with-langgraph/agentic_chatbot/local_mcp_servers/filesystem_mcp_server.py"]
+        },
+        'GitHub': {
+            'transport': 'stdio',
+            'command': 'python',
+            'args': ["/home/toqeer-yasir/Documents/repos/ai-agents-with-langgraph/agentic_chatbot/local_mcp_servers/github_mcp_server.py"]
+        },
+        'Shell': {
+            'transport': 'stdio',
+            'command': 'python',
+            'args': ["/home/toqeer-yasir/Documents/repos/ai-agents-with-langgraph/agentic_chatbot/local_mcp_servers/shell_mcp_server.py"]
         }
+
     }
 )
 
@@ -98,13 +109,14 @@ def load_mcp_tools() -> list[BaseTool]:
     try:
         return run_async(client.get_tools())
     except Exception:
-        return []
+        return f"Error: Check servers config."
 
 
 mcp_tools = load_mcp_tools()
 
 tools = [search_tool, calculator_tool, *mcp_tools]
 llm_with_tools = llm.bind_tools(tools=tools)
+
 
 
 # State definition
