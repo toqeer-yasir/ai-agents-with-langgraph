@@ -2,6 +2,7 @@ import streamlit as st
 from chatbot_backend_sync_version import chatbot, retrieve_all_threads
 from langchain_core.messages import HumanMessage, AIMessage
 import uuid
+import markdown
 
 # page configuration
 st.set_page_config(
@@ -56,11 +57,12 @@ def display_message(message, role):
     """Display a message with appropriate styling based on role."""
     container_class = "message-container-user" if role == "user" else "message-container-assistant"
     message_class = "user-message" if role == "user" else "assistant-message"
-    
+    html_content = markdown.markdown(message)
+
     html = f"""
     <div class='{container_class}'>
         <div style='display:{"none" if role == "user" else "inline-block"};'>✨</div>
-        <div class='{message_class}'>{message}</div>
+        <div class='{message_class}'>{html_content}</div>
         <div style='display:{"inline-block" if role == "user" else "none"};'>👤</div>
     </div>
     """
@@ -85,7 +87,7 @@ st.markdown("""
         font-style: italic;
     }
     p {
-        color: gray;
+        color: #FFFFF;
         font-style: italic;        
     }
     .title {
@@ -297,11 +299,13 @@ if user_input:
         # stream ai response text
         if isinstance(message_chunk, AIMessage) and message_chunk.content:
             full_response += message_chunk.content
+            html_content = markdown.markdown(full_response + '┃')
+
             
             message_container = f"""
             <div class='message-container-assistant'>
                 <div>✨</div>
-                <div class='assistant-message'>{full_response}┃</div>
+                <div class='assistant-message'>{html_content}</div>
             </div>
             """
             
@@ -309,10 +313,11 @@ if user_input:
 
     # final update to remove cursor:
     if full_response:
+        html_content = markdown.markdown(full_response)
         message_container = f"""
         <div class='message-container-assistant'>
             <div>✨</div>
-            <div class='assistant-message'>{full_response}</div>
+            <div class='assistant-message'>{html_content}</div>
         </div>
         """
         response_container.markdown(message_container, unsafe_allow_html=True)
