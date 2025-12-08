@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 from typing import TypedDict, Annotated
 from langchain_core.messages import AIMessage
 from langgraph.graph.message import add_messages
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, START
 from dotenv import load_dotenv
 
 # from langgraph.checkpoint.memory import InMemorySaver
@@ -18,22 +18,25 @@ import sqlite3
 # libraries to add tools:
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_community.tools import DuckDuckGoSearchRun
 
+from langchain_tavily import TavilySearch
 
 
 load_dotenv()
 
 llm = ChatOpenAI(
-     model= "x-ai/grok-4.1-fast:free",
+    #  model= "x-ai/grok-4.1-fast:free",
+     model= "tngtech/tng-r1t-chimera:free",
     openai_api_key=os.getenv("OPENROUTER_API_KEY"),
     openai_api_base="https://openrouter.ai/api/v1",
     temperature=0.1
     )
 
+
+
 # creating tools:
 @tool
-def calculator(expression: str) -> str:
+def calculator_tool(expression: str) -> str:
     """Evaluate mathematical expressions."""
     try:
         allowed_names = {**math.__dict__}
@@ -42,10 +45,15 @@ def calculator(expression: str) -> str:
     except Exception as e:
         return f"Error: {str(e)}"
 
+search_tool = TavilySearch(
+    max_results=3,
+    include_answer=True,
+    search_depth="advanced",
+    tavily_api_key=os.getenv("TAVILY_API_KEY")
+)
 
 
-search_tool = DuckDuckGoSearchRun(region= 'us-en')
-calculator_tool = calculator
+
 tools = [calculator_tool, search_tool]
 llm_with_tools = llm.bind_tools(tools=tools)
 
