@@ -1,11 +1,17 @@
-import streamlit as st
-from chatbot_backend import chatbot, retrieve_all_threads, submit_async_task 
-from langchain_core.messages import HumanMessage, AIMessage
 import uuid
 import queue
 import time
 import markdown
 import re
+import streamlit as st
+from langchain_core.messages import HumanMessage, AIMessage
+from chatbot_backend import (
+    chatbot,
+    ingest_pdf,
+    retrieve_all_threads,
+    thread_document_metadata
+)
+
 
 # page configuration
 st.set_page_config(
@@ -90,6 +96,11 @@ def display_message(message, role):
     """
     st.markdown(html, unsafe_allow_html=True)
 
+
+def load_conversation(thread_id):
+    state = chatbot.get_state(config={"configurable": {"thread_id": thread_id}})
+    return state.values.get("messages", [])
+
 # session states # =====================================================
 if 'thread_id' not in st.session_state:
     st.session_state['thread_id'] = generate_thread_id()
@@ -106,6 +117,10 @@ if 'chat_threads' not in st.session_state:
 if 'conversation_titles' not in st.session_state:
     st.session_state['conversation_titles'] = {}
 
+thread_key = str(st.session_state['thread_id'])
+thread_docs = st.session_state['ingested_docs'].setdefault(thread_key, {})
+threads = st.session_state['chat_threads'][::-1]
+selected_thread = None
 # custom css # =====================================================
 st.markdown("""
 <style>
@@ -217,9 +232,34 @@ with st.sidebar:
     if st.button('Start New Chat +') and st.session_state['message_history']:
         reset_chat()
     
+
+# -------------------------------------------
+    if thread_docs:
+        latest_doc = list(thread_docs.values())[-1]
+        st.sidebar.success(
+            f"Using `{latest_doc.get('filename')}`"
+            f"({latest_doc.get('chunks')} chunks from {latest_doc.get('documents')} pages)"
+        )
+    else:
+        st.sidebar.info("No PDF Uploaded yet.")
+
+    uploaded_pdf = st.sidebar.file_uploader("Upload a PDF for this chat.")
+    if uploaded_pdf:
+        if uploaded_pdf.name in thread_docs:
+            st.sidebar.info(f"`{uploaded_pdf.name}` already processed for this chat.")
+        else:
+            with st.sidebar.status("Uploading PDF...", expanded=True) as status_box:
+                summary = ingest_pdf(
+                    uploaded_pdf.getvalue(),
+                    thread_id=thread_key,
+                    filename=uploaded_pdf.name
+                )
+                thread_docs[uploaded_pdf.name] = summary
+                status_box.update(label="✅PDF uploaded", state='complete', expanded=False)
+# -------------------------------------------    
+    
     st.title('Recent Chats')
     st.markdown('___')
-    
     for thread_id in st.session_state['chat_threads']:
         # Get or compute conversation title
         if thread_id not in st.session_state['conversation_titles']:
@@ -292,36 +332,7 @@ if user_input:
     </div>
     """
     response_container.markdown(thinking_html, unsafe_allow_html=True)
-    
-    event_queue = queue.Queue()
-
-    async def run_async_stream():
-        try:
-            async for message_chunk, metadata in chatbot.astream(
-                msg, 
-                config=CONFIG, 
-                stream_mode='messages'
-            ):
-                event_queue.put((message_chunk, metadata))
-        except Exception as exc:
-            event_queue.put(("error", exc))
-        finally:
-            event_queue.put(None)
-
-    # async stream
-    submit_async_task(run_async_stream())
-    
-    # Process events from the queue
-    while True:
-        item = event_queue.get()
-        if item is None:
-            break
-            
-        if item[0] == "error":
-            raise item[1]
-            
-        message_chunk, metadata = item
-        
+    for message_chunk, _ in chatbot.stream(msg, config=CONFIG, stream_mode='messages'):
         # handle tool messages 
         if isinstance(message_chunk, AIMessage) and hasattr(message_chunk, 'tool_calls') and message_chunk.tool_calls:
             if tools_set:
@@ -365,23 +376,19 @@ if user_input:
         
         # stream ai response text
         if isinstance(message_chunk, AIMessage) and message_chunk.content:
-            new_content = message_chunk.content
-            if new_content and not new_content.isspace():
-                parts = re.split(r'(\s+)', new_content)
-                for part in parts:
-                    full_response += part
+            full_response += message_chunk.content
+            html_content = markdown.markdown(full_response + '┃')
 
-                    html_content = markdown.markdown(full_response + '┃')
-                    
-                    message_container = f"""
-                    <div class='message-container-assistant'>
-                        <div>✨</div>
-                        <div class='assistant-message'>{html_content}</div>
-                    </div>
-                    """
-                    response_container.markdown(message_container, unsafe_allow_html=True)
-                    time.sleep(0.006)
-    
+            
+            message_container = f"""
+            <div class='message-container-assistant'>
+                <div>✨</div>
+                <div class='assistant-message'>{html_content}</div>
+            </div>
+            """
+            
+            response_container.markdown(message_container, unsafe_allow_html=True)
+
     # final update to remove cursor:
     if full_response:
         html_content = markdown.markdown(full_response)
@@ -396,3 +403,25 @@ if user_input:
     
         # adding assistant response to history:
         st.session_state.message_history.append({"role": "assistant", "content": full_response})
+
+
+    doc_meta = thread_document_metadata(thread_key)
+    if doc_meta:
+        st.caption(
+            f"Document indexed: {doc_meta.get('filename')} "
+            f"(chunks: {doc_meta.get('chunks')}, pages: {doc_meta.get('documents')})"
+        )
+
+st.divider()
+
+if selected_thread:
+    st.session_state["thread_id"] = selected_thread
+    messages = load_conversation(selected_thread)
+
+    temp_messages = []
+    for msg in messages:
+        role = "user" if isinstance(msg, HumanMessage) else "assistant"
+        temp_messages.append({"role": role, "content": msg.content})
+    st.session_state["message_history"] = temp_messages
+    st.session_state["ingested_docs"].setdefault(str(selected_thread), {})
+    st.rerun()
