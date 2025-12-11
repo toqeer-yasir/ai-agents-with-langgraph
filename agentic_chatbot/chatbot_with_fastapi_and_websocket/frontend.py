@@ -122,11 +122,11 @@ async def send_message_websocket(message: str, thread_id: str, response_containe
                     tools = data["tools"]
                     for tool in tools:
                         if tool == 'search':
-                            tools_set.add(' 🔍Search')
+                            tools_set.add('🔍 Search')
                         elif tool == 'calculator':
-                            tools_set.add(' 🧮Calculator')
+                            tools_set.add('🧮 Calculator')
                         else:
-                            tools_set.add(f' 🔧{tool}')
+                            tools_set.add(f'🔧 {tool}')
                     
                     # Build tool status display
                     tools_html = f"<div class='tools'>Using:</div>"
@@ -238,7 +238,7 @@ st.markdown("""
     .assistant-message {
         padding: 9px 16px 9px 12px;
         border-radius: 0 18px 18px 18px;
-        background-color: black;
+        # background-color: black;
         color: white;
         margin: 8px 0;
         margin-bottom: 50px;
