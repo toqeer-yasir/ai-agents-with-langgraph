@@ -178,16 +178,16 @@ async def lifespan(app: FastAPI):
     """Manage application lifecycle"""
     global chatbot, CHECKPOINTER, client
     
-    print("🚀 Initializing chatbot...")
+    print("Initializing chatbot...")
     chatbot, CHECKPOINTER, client = await initialize_chatbot()
-    print("✅ Chatbot initialized successfully!")
+    print("Chatbot initialized successfully!")
     
     yield
     
-    print("🔄 Shutting down...")
+    print("Shutting down...")
     if client:
         await client.close()
-    print("👋 Shutdown complete")
+    print("Shutdown complete")
 
 app = FastAPI(title="Agentic Chatbot API", lifespan=lifespan)
 
@@ -405,8 +405,6 @@ async def delete_document(thread_id: str, filename: str):
                 del _THREAD_RAGS[thread_id]
             del _THREAD_DOCS_METADATA[thread_id]
         else:
-            # Rebuild RAG store without this document
-            # Note: This is a simple implementation. For production, you'd want to track chunks by document
             pass
         
         return {'status': 'success', 'message': f'{filename} removed'}
@@ -442,7 +440,7 @@ async def websocket_chat(websocket: WebSocket):
             msg = {'messages': [HumanMessage(content=message)]}
             
             try:
-                async for message_chunk, metadata in chatbot.astream(
+                async for message_chunk, _ in chatbot.astream(
                     msg, 
                     config=config, 
                     stream_mode='messages'
