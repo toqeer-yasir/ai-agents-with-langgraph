@@ -162,14 +162,14 @@ async def send_message_websocket(message: str, thread_id: str, response_containe
                         elif tool == 'calculator':
                             tools_set.add('Calculator')
                         elif tool == 'retriever':
-                            tools_set.add('Document Retriever')
+                            tools_set.add('Doc Retriever')
                         else:
                             tools_set.add(tool.replace('_', ' ').title())
                     
                     tools_html = f"<div class='tools'>Using:</div>"
                     tool_lines = ""
                     for tool in tools_set:
-                        tool_lines += f"<div class='tool-line'>└─ {tool} tool</div>"
+                        tool_lines += f"<div class='tool-line'>└─{tool} Tool</div>"
                     
                     thinking_with_tools_html = f"""
                     <div class='message-container-assistant'>
@@ -206,7 +206,7 @@ async def send_message_websocket(message: str, thread_id: str, response_containe
                             </div>
                             """
                             response_container.markdown(message_container, unsafe_allow_html=True)
-                            await asyncio.sleep(0.006)
+                            await asyncio.sleep(0.005)
                 
                 elif data["type"] == "complete":
                     if full_response:
@@ -269,9 +269,9 @@ st.markdown("""
     .user-message {
         padding: 9px 16px 0 12px;
         border-radius: 18px 0 18px 18px;
-        background-color: #262730;
-        color: white;
-        margin: 13px 0 15px;
+        background-color: #252730;
+        color: #FFFFFF;
+        margin: 13px 0 25px;
         display: inline-block;
         max-width: 100%;
         text-align: left;
@@ -279,9 +279,7 @@ st.markdown("""
     }
     .assistant-message {
         padding: 9px 16px 9px 12px;
-        # border-radius: 0 18px 18px 18px;
-        # background-color: black;
-        color: white;
+        color: #FFFFFF;
         margin: 8px 0;
         margin-bottom: 50px;
         display: inline-block;
@@ -354,19 +352,9 @@ st.markdown("""
         color: #888;
         margin-left: 4px;
     }
-    .doc-item {
-        padding: 6px 10px;
-        margin: 4px 0;
-        background-color: #1a1a1a;
-        border-left: 2px solid #444;
-        border-radius: 3px;
-        font-size: 12px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
     .doc-item-display {
         padding: 3px 9px;
+        margin-top:5px;
         background-color: #1a1a1a;
         border-left: 4px solid #933;
         border-radius: 9px;
@@ -377,19 +365,9 @@ st.markdown("""
         font-weight: 500;
     }
     .doc-meta {
-        font-size: 10px;
+        font-size: 11px;
         color: #777;
         margin-top: 2px;
-    }
-    .delete-btn {
-        color: #ff4444;
-        cursor: pointer;
-        font-size: 16px;
-        padding: 0 4px;
-        opacity: 0.6;
-    }
-    .delete-btn:hover {
-        opacity: 1;
     }
     .supported-formats {
         font-size: 14px;
@@ -502,7 +480,7 @@ with st.sidebar:
 # Main page
 st.markdown("""
     <div class='title'>
-        <h2>Agentic AI Chatbot 🤖</h2>
+        <h2>Rag Based Agentic Chatbot 🤖</h2>
         <p>'Toqeer's personal assistant'</p>
     </div>
 """, unsafe_allow_html=True)
@@ -512,7 +490,7 @@ for message in st.session_state.message_history:
     display_message(message['content'], message['role'])
 
 # User input and processing
-user_input = st.chat_input("Type here . . .")
+user_input = st.chat_input(placeholder="Type here . . .", width='stretch')
 
 if user_input:
     st.session_state.message_history.append({"role": "user", "content": user_input})
