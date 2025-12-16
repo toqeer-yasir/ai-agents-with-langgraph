@@ -295,8 +295,8 @@ async def initialize_chatbot():
     
     llm = ChatOpenAI(
         model="kwaipilot/kat-coder-pro:free",
-        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-        openai_api_base="https://openrouter.ai/api/v1",
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
         temperature=0.7,
         streaming=True,
         max_retries=2

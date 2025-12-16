@@ -6,7 +6,7 @@ from langchain_openai import ChatOpenAI
 
 # library to create state_class
 from typing import TypedDict, Annotated
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph.message import add_messages
 from langgraph.graph import StateGraph, START
 from dotenv import load_dotenv
@@ -25,10 +25,9 @@ from langchain_tavily import TavilySearch
 load_dotenv()
 
 llm = ChatOpenAI(
-    #  model= "x-ai/grok-4.1-fast:free",
      model= "tngtech/tng-r1t-chimera:free",
-    openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-    openai_api_base="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+    base_url="https://openrouter.ai/api/v1",
     temperature=0.1
     )
 
@@ -58,7 +57,7 @@ tools = [calculator_tool, search_tool]
 llm_with_tools = llm.bind_tools(tools=tools)
 
 class ChatState(TypedDict):
-    messages: Annotated[list, add_messages]
+    messages: Annotated[list[BaseMessage], add_messages]
 
 def chat_node(state: ChatState):
     message = state['messages']

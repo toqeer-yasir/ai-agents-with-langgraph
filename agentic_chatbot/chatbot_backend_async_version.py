@@ -47,8 +47,8 @@ def submit_async_task(coro):
 
 llm = ChatOpenAI(
     model="x-ai/grok-4.1-fast:free",
-    openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-    openai_api_base="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+    base_url="https://openrouter.ai/api/v1",
     temperature=0.6,
     streaming=True,
     max_retries=2
