@@ -36,17 +36,17 @@ async def lifespan(app: FastAPI):
     global chatbot, CHECKPOINTER, client
     
     # Startup
-    print("🚀 Initializing chatbot...")
+    print("Initializing chatbot...")
     chatbot, CHECKPOINTER, client = await initialize_chatbot()
-    print("✅ Chatbot initialized successfully!")
+    print("Chatbot initialized successfully!")
     
     yield
     
     # Shutdown
-    print("🔄 Shutting down...")
+    print("Shutting down...")
     if client:
         await client.close()
-    print("👋 Shutdown complete")
+    print("Shutdown complete")
 
 app = FastAPI(title="Agentic Chatbot API", lifespan=lifespan)
 
@@ -122,8 +122,8 @@ async def initialize_chatbot():
     # Initialize LLM
     llm = ChatOpenAI(
         model="kwaipilot/kat-coder-pro:free",
-        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-        openai_api_base="https://openrouter.ai/api/v1",
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
         temperature=0.7,
         streaming=True,
         max_retries=2
