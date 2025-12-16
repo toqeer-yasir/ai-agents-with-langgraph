@@ -23,7 +23,7 @@ def calculator(
     num2: int,
     operation: Literal["add", "sub", "mul"]
 ):
-    """Perform basic arithmetic operations."""
+    """perform basic arithmetic operations."""
     if operation == "add":
         return num1 + num2
     if operation == "sub":
