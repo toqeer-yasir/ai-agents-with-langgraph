@@ -2,7 +2,7 @@ from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
-from langchain_core.messages import HumanMessage, BaseMessage, ToolMessage, AIMessage
+from langchain_core.messages import HumanMessage, BaseMessage
 from langchain.tools import tool
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing import TypedDict, Annotated, Literal, List
