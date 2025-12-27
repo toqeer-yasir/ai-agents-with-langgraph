@@ -155,21 +155,11 @@ async def send_message_websocket(message: str, thread_id: str, response_containe
                 data = json.loads(response)
                 
                 if data["type"] == "tool_call":
-                    tools = data["tools"]
-                    for tool in tools:
-                        if tool == 'search':
-                            tools_set.add('Web Search')
-                        elif tool == 'calculator':
-                            tools_set.add('Calculator')
-                        elif tool == 'retriever':
-                            tools_set.add('Doc Retriever')
-                        else:
-                            tools_set.add(tool.replace('_', ' ').title())
-                    
+                    tools_set = set(data["tools"])
                     tools_html = f"<div class='tools'>Using:</div>"
                     tool_lines = ""
                     for tool in tools_set:
-                        tool_lines += f"<div class='tool-line'>└─{tool} Tool</div>"
+                        tool_lines += f"<div class='tool-line'>└─ {tool} Tool</div>"
                     
                     thinking_with_tools_html = f"""
                     <div class='message-container-assistant'>
@@ -301,7 +291,6 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 4px;
-        margin-bottom: 2px;
     }
     .thinking-text {
         font-style: italic;
@@ -373,6 +362,7 @@ st.markdown("""
         font-size: 14px;
         color: #666;
         margin-left: 4px;
+        margin-bottom: 2px;
         font-style: italic;
     }
     @keyframes typing {

@@ -295,6 +295,11 @@ async def initialize_chatbot():
     
     llm = ChatOpenAI(
         model="kwaipilot/kat-coder-pro:free",
+        # model="xiaomi/mimo-v2-flash:free",
+        # model="nvidia/nemotron-3-nano-30b-a3b:free",
+        # model="mistralai/devstral-2512:free",
+        # model="nex-agi/deepseek-v3.1-nex-n1:free",
+        # model="xiaomi/mimo-v2-flash:free",
         api_key=os.getenv("OPENROUTER_API_KEY"),
         base_url="https://openrouter.ai/api/v1",
         temperature=0.7,
@@ -450,13 +455,13 @@ async def websocket_chat(websocket: WebSocket):
                         for tool_call in message_chunk.tool_calls:
                             tool_name = tool_call["name"].lower()
                             if 'tavily' in tool_name:
-                                tools_used.append('search')
+                                tools_used.append('Web Search')
                             elif 'calculator' in tool_name or 'math' in tool_name:
-                                tools_used.append('calculator')
+                                tools_used.append('Calculator')
                             elif 'retriever' in tool_name:
-                                tools_used.append('retriever')
+                                tools_used.append('Doc Retriever')
                             else:
-                                tools_used.append(tool_name)
+                                tools_used.append(tool.replace('_', ' ').title())
                         
                         await websocket.send_json({
                             "type": "tool_call",
