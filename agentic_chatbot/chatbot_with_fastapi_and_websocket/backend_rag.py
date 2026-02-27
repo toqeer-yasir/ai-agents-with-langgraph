@@ -294,12 +294,7 @@ async def initialize_chatbot():
     """Initialize the chatbot with all components"""
     
     llm = ChatOpenAI(
-        model="kwaipilot/kat-coder-pro:free",
-        # model="xiaomi/mimo-v2-flash:free",
-        # model="nvidia/nemotron-3-nano-30b-a3b:free",
-        # model="mistralai/devstral-2512:free",
-        # model="nex-agi/deepseek-v3.1-nex-n1:free",
-        # model="xiaomi/mimo-v2-flash:free",
+        model="git ",
         api_key=os.getenv("OPENROUTER_API_KEY"),
         base_url="https://openrouter.ai/api/v1",
         temperature=0.7,
