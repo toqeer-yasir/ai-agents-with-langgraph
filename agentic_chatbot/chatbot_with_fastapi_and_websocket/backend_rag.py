@@ -29,6 +29,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool, BaseTool
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+#from langgraph_checkpoint_sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.message import add_messages
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -294,7 +295,7 @@ async def initialize_chatbot():
     """Initialize the chatbot with all components"""
     
     llm = ChatOpenAI(
-        model="git ",
+        model="nvidia/nemotron-3-super-120b-a12b:free",
         api_key=os.getenv("OPENROUTER_API_KEY"),
         base_url="https://openrouter.ai/api/v1",
         temperature=0.7,
@@ -456,7 +457,7 @@ async def websocket_chat(websocket: WebSocket):
                             elif 'retriever' in tool_name:
                                 tools_used.append('Doc Retriever')
                             else:
-                                tools_used.append(tool.replace('_', ' ').title())
+                                tools_used.append(tool_name.replace('_', ' ').title())
                         
                         await websocket.send_json({
                             "type": "tool_call",
