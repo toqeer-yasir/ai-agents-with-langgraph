@@ -128,10 +128,12 @@ class Rag:
         return "Ingestion completed successfully."
 
 
-    def retriever(self, top_k: int = 3, user_id: str = None):
-        return self.vector_store.similarity_search(
-        query,
-        k=top_k,
-        filter={
-            "user_id": user_id
-        })
+    def get_retriever(self, top_k: int = 3, user_id: str = None):
+        return self.vector_store.as_retriever(
+            search_kwargs={
+                "k": top_k,
+                "filter": {
+                    "user_id": user_id
+                }
+            }
+        )
