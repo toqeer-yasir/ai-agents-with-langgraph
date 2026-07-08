@@ -40,7 +40,7 @@ async def load_mcp_tools():
                 'args': ["/home/toqeer-yasir/Documents/repos/ai-agents-with-langgraph/agentic_chatbot/local_mcp_servers/shell_mcp_server.py"]
             }
         })
-        return await mcp_client.get_tools()
+        return await mcp_client.get_tools(), mcp_client
     except Exception as e:
         raise RuntimeError(f"Error loading MCP tools: {e}")
 
@@ -63,5 +63,5 @@ online_search = TavilySearch(
 
 
 async def get_tools():
-    mcp_tools = await load_mcp_tools()
-    return mcp_tools + [rag_search] + [online_search]
+    mcp_tools, mcp_client = await load_mcp_tools()
+    return list(mcp_tools) + [rag_search] + [online_search], mcp_client
