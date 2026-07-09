@@ -1,17 +1,21 @@
 import os
+import json
 from contextlib import asynccontextmanager
 from typing import Annotated
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
+from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage
 from langchain_openrouter import ChatOpenRouter
 
-from langgraph.graph import START, StateGraph
+from langgraph.graph import START, END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
+
+from langgraph.types import interrupt, Command
+import shlex
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
@@ -20,7 +24,6 @@ from psycopg_pool import AsyncConnectionPool
 from typing_extensions import TypedDict
 
 from tools import get_tools
-
 
 
 load_dotenv()
@@ -33,30 +36,120 @@ class ChatState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
 
-
 def create_chat_node(model_with_tools):
 
     async def chat_node(state: ChatState):
-
-        response = await model_with_tools.ainvoke(
-            state["messages"]
-        )
-
-        return {
-            "messages": [response]
-        }
+        response = await model_with_tools.ainvoke(state["messages"])
+        return {"messages": [response]}
 
     return chat_node
 
 
+def create_approval_node(RISK_BY_COMMAND, RISK_BY_FLAG):
 
-def build_graph(model_with_tools, tools, checkpointer):
+    def analyze_command(command_str: str):
+        try:
+            tokens = shlex.split(command_str)
+        except ValueError:
+            tokens = command_str.split()
 
+        expanded_tokens = []
+        for token in tokens:
+            if token.startswith("-") and not token.startswith("--") and token[1:].isalpha():
+                expanded_tokens.extend(f"-{char}" for char in token[1:])
+            else:
+                expanded_tokens.append(token)
+
+        detected_risks = set()
+        for token in expanded_tokens:
+            risk_info = RISK_BY_COMMAND.get(token) or RISK_BY_FLAG.get(token)
+            if risk_info:
+                detected_risks.add(tuple(risk_info.items()))
+
+        return [dict(t) for t in detected_risks]
+
+    async def approval_node(state: ChatState):
+        message = state["messages"][-1]
+        tool_calls = getattr(message, "tool_calls", []) or []
+
+        if not tool_calls:
+            return Command(goto="tools")
+
+        risky_calls = []
+        for tool in tool_calls:
+            if tool["name"] != "shell":
+                continue
+
+            command = tool.get("args", {}).get("command", "")
+            risks = analyze_command(command)
+
+            if risks:
+                risky_calls.append({
+                    "id": tool["id"],
+                    "name": tool["name"],
+                    "command": command,
+                    "risks": risks,
+                })
+
+        if not risky_calls:
+            return Command(goto="tools")
+
+        payload = {
+            "title": "Approval Required",
+            "tools": [
+                {
+                    "id": rc["id"],
+                    "name": rc["name"],
+                    "command": rc["command"],
+                    "risk_levels": [r["risk"] for r in rc["risks"]],
+                    "descriptions": [r["description"] for r in rc["risks"]],
+                }
+                for rc in risky_calls
+            ],
+        }
+
+        response = interrupt(payload)
+        rejected_ids = set(response["rejected_tool_ids"])
+
+        rejected = [rc for rc in risky_calls if rc["id"] in rejected_ids]
+
+        if not rejected:
+            return Command(goto="tools")
+
+        remaining_tool_calls = [tc for tc in tool_calls if tc["id"] not in rejected_ids]
+
+        rejected_messages = [
+            ToolMessage(
+                tool_call_id=rc["id"],
+                name=rc["name"],
+                content="Execution denied by the user.",
+            )
+            for rc in rejected
+        ]
+
+        if not remaining_tool_calls:
+            return Command(goto="chatnode", update={"messages": rejected_messages})
+
+        updated_message = message.model_copy(
+            update={"id": message.id, "tool_calls": remaining_tool_calls}
+        )
+
+        return Command(
+            goto="tools",
+            update={"messages": [updated_message, *rejected_messages]},
+        )
+
+    return approval_node
+
+
+def build_graph(model_with_tools, tools, checkpointer, RISK_BY_COMMAND, RISK_BY_FLAG):
     builder = StateGraph(ChatState)
 
     chat_node = create_chat_node(model_with_tools)
+    approval_node = create_approval_node(RISK_BY_COMMAND, RISK_BY_FLAG)
 
     builder.add_node("chatnode", chat_node)
+    builder.add_node("approvalnode", approval_node, destinations=("tools", "chatnode"))
     builder.add_node("tools", ToolNode(tools))
 
     builder.add_edge(START, "chatnode")
@@ -64,42 +157,32 @@ def build_graph(model_with_tools, tools, checkpointer):
     builder.add_conditional_edges(
         "chatnode",
         tools_condition,
+        {"tools": "approvalnode", END: END},
     )
 
-    builder.add_edge(
-        "tools",
-        "chatnode",
-    )
+    builder.add_edge("tools", "chatnode")
 
-    return builder.compile(
-        checkpointer=checkpointer
-    )
-
+    return builder.compile(checkpointer=checkpointer)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
     print("Starting server...")
 
-    pool = AsyncConnectionPool(
-        DATABASE_URL,
-        min_size=4,
-        max_size=10,
-        open=False
-    )
+    RISK_BY_COMMAND = json.load(open("./approval_actions.json"))
+    RISK_BY_FLAG = json.load(open("./dangerous_flags.json"))
 
+    pool = AsyncConnectionPool(DATABASE_URL, min_size=4, max_size=10, open=False)
     await pool.open()
 
     checkpointer = AsyncPostgresSaver(pool)
-
     await checkpointer.setup()
 
     model = ChatOpenRouter(
-        model="openrouter/free",
+        model="nvidia/nemotron-3-nano-30b-a3b:free",
         api_key=OPENROUTER_API_KEY,
-        streaming= True,
-        temperature=0.7
+        streaming=True,
+        temperature=0.7,
     )
 
     tools, mcp_client = await get_tools()
@@ -111,6 +194,8 @@ async def lifespan(app: FastAPI):
         model_with_tools=model_with_tools,
         tools=tools,
         checkpointer=checkpointer,
+        RISK_BY_COMMAND=RISK_BY_COMMAND,
+        RISK_BY_FLAG=RISK_BY_FLAG,
     )
 
     app.state.pool = pool
@@ -122,18 +207,13 @@ async def lifespan(app: FastAPI):
     yield
 
     print("Stopping server...")
-
     await pool.close()
 
     if hasattr(app.state, "mcp_client"):
         await app.state.mcp_client.aclose()
 
 
-
-app = FastAPI(
-    title="Agentic RAG Backend",
-    lifespan=lifespan,
-)
+app = FastAPI(title="Agentic RAG Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -144,6 +224,33 @@ app.add_middleware(
 )
 
 
+async def stream_graph_run(websocket: WebSocket, graph, run_input, config, context):
+
+    async for mode, data in graph.astream(
+        run_input,
+        config=config,
+        context=context,
+        stream_mode=["messages", "updates"],
+    ):
+        if mode == "messages":
+            message_chunk, _metadata = data
+            if isinstance(message_chunk, AIMessage) and message_chunk.content:
+                await websocket.send_json({
+                    "type": "content",
+                    "content": message_chunk.content,
+                })
+
+        elif mode == "updates":
+            for node_name, node_update in data.items():
+                if node_name == "__interrupt__":
+                    # node_update is a tuple of Interrupt objects
+                    interrupt_obj = node_update[0]
+                    await websocket.send_json({
+                        "type": "interrupt",
+                        "content": interrupt_obj.value,
+                    })
+
+
 @app.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket):
     await websocket.accept()
@@ -151,45 +258,42 @@ async def websocket_chat(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_json()
-            message = data.get("message")
             thread_id = data.get("thread_id")
-            user_id = data.get("user_id")
-            
-            if not message or not thread_id:
+
+            if not thread_id:
                 await websocket.send_json({
                     "type": "error",
-                    "content": "Missing message or thread_id"
+                    "content": "Missing thread_id",
                 })
                 continue
-            
-            msg = {'messages': [HumanMessage(content=message)]}
-            config = {"configurable": {'thread_id': thread_id}}
-            context={"user_id": user_id}
+
+            config = {"configurable": {"thread_id": thread_id}}
+
+            if data.get("type") == "approval_response":
+                # Resuming a graph paused at approvalnode's interrupt()
+                rejected_ids = data.get("rejected_tool_ids", [])
+                run_input = Command(resume={"rejected_tool_ids": rejected_ids})
+                context = {"user_id": data.get("user_id")}
+            else:
+                message = data.get("message")
+                if not message:
+                    await websocket.send_json({
+                        "type": "error",
+                        "content": "Missing message",
+                    })
+                    continue
+                run_input = {"messages": [HumanMessage(content=message)]}
+                context = {"user_id": data.get("user_id")}
 
             try:
-                async for message_chunk, _ in websocket.app.state.graph.astream(
-                    msg,
-                    config= config,
-                    context= context,
-                    stream_mode= ["messages", "updates"]
-                ):
-
-                    if isinstance(message_chunk, AIMessage) and message_chunk.content:
-                        await websocket.send_json({
-                            "type": "content",
-                            "content": message_chunk.content
-                        })
-
-                await websocket.send_json({
-                    "type": "completed"
-                })
+                await stream_graph_run(websocket, websocket.app.state.graph, run_input, config, context)
+                await websocket.send_json({"type": "completed"})
 
             except Exception as e:
-                await websocket.send_json({
-                    "type": "error",
-                    "content": str(e)
-                })
-    
+                import traceback
+                traceback.print_exc()
+                await websocket.send_json({"type": "error", "content": str(e)})
+
     except WebSocketDisconnect:
         print("Client Disconnected")
 
