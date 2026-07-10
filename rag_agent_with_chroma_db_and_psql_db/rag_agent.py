@@ -95,7 +95,6 @@ def create_approval_node(RISK_BY_COMMAND, RISK_BY_FLAG):
             return Command(goto="tools")
 
         payload = {
-            "title": "Approval Required",
             "tools": [
                 {
                     "id": rc["id"],
@@ -243,7 +242,6 @@ async def stream_graph_run(websocket: WebSocket, graph, run_input, config, conte
         elif mode == "updates":
             for node_name, node_update in data.items():
                 if node_name == "__interrupt__":
-                    # node_update is a tuple of Interrupt objects
                     interrupt_obj = node_update[0]
                     await websocket.send_json({
                         "type": "interrupt",
@@ -270,9 +268,10 @@ async def websocket_chat(websocket: WebSocket):
             config = {"configurable": {"thread_id": thread_id}}
 
             if data.get("type") == "approval_response":
-                # Resuming a graph paused at approvalnode's interrupt()
                 rejected_ids = data.get("rejected_tool_ids", [])
-                run_input = Command(resume={"rejected_tool_ids": rejected_ids})
+                run_input = Command(resume={
+                    "rejected_tool_ids": rejected_ids
+                })
                 context = {"user_id": data.get("user_id")}
             else:
                 message = data.get("message")
@@ -289,10 +288,16 @@ async def websocket_chat(websocket: WebSocket):
                 await stream_graph_run(websocket, websocket.app.state.graph, run_input, config, context)
                 await websocket.send_json({"type": "completed"})
 
+            except (WebSocketDisconnect, RuntimeError) as e:
+                print(f"Client disconnected mid-run: {e}")
+
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                await websocket.send_json({"type": "error", "content": str(e)})
+                try:
+                    await websocket.send_json({"type": "error", "content": str(e)})
+                except Exception:
+                    pass
 
     except WebSocketDisconnect:
         print("Client Disconnected")
