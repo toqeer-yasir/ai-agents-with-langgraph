@@ -91,7 +91,7 @@ if st.session_state.pending_interrupt:
     tools = st.session_state.pending_interrupt.get("tools", [])
 
     with st.chat_message("assistant"):
-        st.warning("Approval required before I continue")
+        st.warning("Approval required before I continue", width= 270)
 
         rejected_by_id = {}
         for tc in tools:

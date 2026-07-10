@@ -290,6 +290,7 @@ async def websocket_chat(websocket: WebSocket):
 
             except (WebSocketDisconnect, RuntimeError) as e:
                 print(f"Client disconnected mid-run: {e}")
+                return
 
             except Exception as e:
                 import traceback
@@ -300,8 +301,10 @@ async def websocket_chat(websocket: WebSocket):
                     pass
 
     except WebSocketDisconnect:
-        print("Client Disconnected")
+            print("Client Disconnected")
 
+    except RuntimeError as e:
+        print(f"Client Disconnected (runtime): {e}")
 
 if __name__ == "__main__":
     import uvicorn
