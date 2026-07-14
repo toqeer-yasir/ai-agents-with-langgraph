@@ -1,6 +1,7 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 
 async def create_message(pool, id, chat_id, user_content, assistant_content):
+    assistant_id = uuid4()
     async with pool.connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
@@ -11,14 +12,12 @@ async def create_message(pool, id, chat_id, user_content, assistant_content):
                 (id, chat_id, user_content)
             )
 
-            user_message_id = (await cur.fetchone()[0])
-
             await cur.execute(
                 """
-                INSERT INTO messages(id, chat_id, role, content)
-                VALUES (%s, %s, 'assistant', %s)
+                INSERT INTO messages(id, chat_id, role, content, parent_message_id)
+                VALUES (%s, %s, 'assistant', %s, %s)
                 """,
-                (id, chat_id, assistant_content, user_message_id)
+                (assistant_id, chat_id, assistant_content, id)
             )
 
             
