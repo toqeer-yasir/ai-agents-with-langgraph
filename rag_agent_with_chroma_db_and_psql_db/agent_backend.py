@@ -19,6 +19,7 @@ import shlex
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
+from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from typing_extensions import TypedDict
@@ -171,7 +172,18 @@ async def lifespan(app: FastAPI):
     RISK_BY_COMMAND = json.load(open("./approval_actions.json"))
     RISK_BY_FLAG = json.load(open("./dangerous_flags.json"))
 
-    pool = AsyncConnectionPool(DATABASE_URL, min_size=4, max_size=10, open=False)
+    pool = AsyncConnectionPool(
+        DATABASE_URL,
+        min_size=4,
+        max_size=10,
+        open=False,
+        kwargs={
+            "autocommit": True,
+            "prepare_threshold": 0,
+            "row_factory": dict_row,
+        },
+    )
+
     await pool.open()
 
     checkpointer = AsyncPostgresSaver(pool)
