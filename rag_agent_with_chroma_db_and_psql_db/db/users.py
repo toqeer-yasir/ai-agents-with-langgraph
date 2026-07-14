@@ -117,16 +117,16 @@ async def update_user(
 
 async def delete_user(
     pool,
-    user_id: UUID,
+    email: str,
 ):
     async with pool.connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
                 """
                 DELETE FROM users
-                WHERE id = %s;
+                WHERE email = %s;
                 """,
-                (user_id,),
+                (email,),
             )
 
             return cur.rowcount > 0
