@@ -57,7 +57,7 @@ async def update_chat_title(pool, chat_id, new_chat_title):
                 """
                 UPDATE chats
                 SET title = %s
-                WHERE chat_id = %s;
+                WHERE id = %s;
                 """,
                 (new_chat_title, chat_id),
             )
