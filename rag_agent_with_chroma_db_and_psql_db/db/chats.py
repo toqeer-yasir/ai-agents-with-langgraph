@@ -19,6 +19,24 @@ async def get_user_chats(pool, user_id: UUID):
             return await cur.fetchall()
 
 
+async def get_chat(pool, chat_id: UUID):
+
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+
+            await cur.execute(
+                """
+                SELECT title
+                FROM chats
+                WHERE id = %s
+                ORDER BY updated_at DESC;
+                """,
+                (chat_id,),
+            )
+
+            return await cur.fetchone()["title"]
+
+
 async def create_chat(pool, chat_id, user_id, title):
 
     async with pool.connection() as conn:
@@ -58,6 +76,9 @@ async def update_chat_title(pool, chat_id, new_chat_title):
                 UPDATE chats
                 SET title = %s
                 WHERE id = %s;
+                RETURNING title;
                 """,
                 (new_chat_title, chat_id),
             )
+
+            return await cur.fetchone()["title"]
