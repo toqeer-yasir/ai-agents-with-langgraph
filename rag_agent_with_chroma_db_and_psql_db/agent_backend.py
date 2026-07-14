@@ -3,9 +3,13 @@ import json
 from contextlib import asynccontextmanager
 from typing import Annotated
 
+from pydantic import BaseModel, EmailStr
+
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+
+from uuid import UUID, uuid4
 
 from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage
 from langchain_openrouter import ChatOpenRouter
@@ -25,6 +29,13 @@ from psycopg_pool import AsyncConnectionPool
 from typing_extensions import TypedDict
 
 from tools import get_tools
+
+from db import (
+    users,
+    chats,
+    messages,
+    documents
+)
 
 
 load_dotenv()
@@ -122,7 +133,13 @@ def create_approval_node(RISK_BY_COMMAND, RISK_BY_FLAG):
             ToolMessage(
                 tool_call_id=rc["id"],
                 name=rc["name"],
-                content="Execution denied by the user.",
+                content=(
+                    "The user denied permission to execute this tool. "
+                    "Do not retry or request execution of the same tool unless the user explicitly changes their decision. "
+                    "If a safe alternative exists that does not require this tool, use it. "
+                    "Otherwise, explain what could not be completed because of the denial and ask the user how they would like to proceed. "
+                    "You may ask why they declined only if that information would help provide a better alternative."
+                ),
             )
             for rc in rejected
         ]
@@ -235,6 +252,21 @@ app.add_middleware(
 )
 
 
+class SaveMessagesRequest(BaseModel):
+    user_id : UUID
+    message_id: UUID
+    chat_id: UUID
+    user_content: str
+    assistant_content: str
+
+
+class CreateUserRequest(BaseModel):
+    user_id: UUID
+    user_name: str
+    user_email: EmailStr
+
+
+
 async def stream_graph_run(websocket: WebSocket, graph, run_input, config, context):
 
     async for mode, data in graph.astream(
@@ -317,6 +349,106 @@ async def websocket_chat(websocket: WebSocket):
 
     except RuntimeError as e:
         print(f"Client Disconnected (runtime): {e}")
+
+
+@app.post("/users")
+async def create_user(data: CreateUserRequest, request: Request):
+    pool = request.app.state.pool
+    user_id = data.user_id
+    user_name = data.user_name
+    user_email = data.user_email
+
+    await users.create_user(pool=pool, user_id=user_id, name=user_name, email=user_email)
+
+    return {
+        "success": True
+    }
+
+
+@app.get("/users/by-email/{email}")
+async def get_user_by_email(email: str, request: Request):
+    pool = request.app.state.pool
+
+    user_details = await users.get_user_by_email(pool=pool, email=email)
+
+    return {
+        "success": True,
+        "user_details": user_details
+    }
+
+@app.delete("/users/{email}")
+async def delete_user_by_email(email: str, request: Request):
+    pool = request.app.state.pool
+
+    count = await users.delete_user(pool=pool, email=email)
+
+    return {
+        "success": True,
+        "row_count": count
+    }
+
+@app.get("/users/{user_id}/chats")
+async def get_user_chats(user_id: UUID, request: Request):
+    pool = request.app.state.pool
+
+    chats_list = await chats.get_user_chats(pool=pool, user_id=user_id)
+
+    return {
+        "success": True,
+        "chats": chats_list
+    }
+
+
+@app.get("/chats/{chat_id}/messages")
+async def get_chat_messages(chat_id: UUID, request: Request):
+    pool = request.app.state.pool
+
+    chat_messages = await messages.get_chat_messages(pool=pool, chat_id=chat_id)
+
+    return {
+        "success": True,
+        "messages": chat_messages
+    }
+
+
+@app.post("/messages")
+async def save_message(data: SaveMessagesRequest, request: Request):
+    pool = request.app.state.pool
+
+    user_id = data.user_id
+    message_id = data.message_id
+    chat_id = data.chat_id
+    user_content = data.user_content
+    assistant_content = data.assistant_content
+
+    await messages.create_message(pool= pool, message_id=message_id, chat_id=chat_id, user_content=user_content, assistant_content=assistant_content)
+    
+    chat = await chats.get_chat(pool=pool, chat_id=chat_id)
+
+    if chat is None:
+        tokens = user_content.split()
+        title = " ".join(tokens[:4])
+        await chats.create_chat(pool=pool, chat_id=chat_id, user_id=user_id, title=title)
+
+        return {
+            "success": True,
+            "chat_title": title
+        }
+    return {
+        "success": True
+    }
+
+ 
+@app.delete("/chats/{chat_id}")
+async def delete_user_chat(chat_id: UUID, request: Request):
+    pool = request.app.state.pool
+
+    await chats.delete_chat(pool=pool, chat_id=chat_id)
+
+    return {
+        "success": True
+    }
+
 
 if __name__ == "__main__":
     import uvicorn
