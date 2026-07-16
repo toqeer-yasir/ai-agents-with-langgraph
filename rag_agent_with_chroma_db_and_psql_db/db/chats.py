@@ -34,7 +34,7 @@ async def get_chat(pool, chat_id: UUID):
                 (chat_id,),
             )
 
-            return await cur.fetchone()["title"]
+            return await cur.fetchone()
 
 
 async def create_chat(pool, chat_id, user_id, title):
@@ -75,10 +75,10 @@ async def update_chat_title(pool, chat_id, new_chat_title):
                 """
                 UPDATE chats
                 SET title = %s
-                WHERE id = %s;
+                WHERE id = %s
                 RETURNING title;
                 """,
                 (new_chat_title, chat_id),
             )
 
-            return await cur.fetchone()["title"]
+            return await cur.fetchone()

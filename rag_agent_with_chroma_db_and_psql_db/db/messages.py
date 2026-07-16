@@ -33,7 +33,7 @@ async def get_chat_messages(pool, chat_id):
                 id,
                 role,
                 content,
-                parent_message_id,
+                parent_message_id
                 FROM messages
                 WHERE chat_id = %s
                 ORDER BY created_at ASC;
@@ -45,10 +45,10 @@ async def get_chat_messages(pool, chat_id):
 
         return [
             {
-                "id": row[0],
-                "role": row[1],
-                "content": row[2],
-                "parent_message_id": row[3],
+                "id": row["id"],
+                "role": row["role"],
+                "content": row["content"],
+                "parent_message_id": row["parent_message_id"],
             }
             for row in rows
         ]

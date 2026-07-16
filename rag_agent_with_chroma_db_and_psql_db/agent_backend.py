@@ -354,14 +354,15 @@ async def websocket_chat(websocket: WebSocket):
 @app.post("/users")
 async def create_user(data: CreateUserRequest, request: Request):
     pool = request.app.state.pool
-    user_id = data.user_id
+    user_id = uuid4()
     user_name = data.user_name
     user_email = data.user_email
 
     await users.create_user(pool=pool, user_id=user_id, name=user_name, email=user_email)
 
     return {
-        "success": True
+        "success": True,
+        "user_id": user_id
     }
 
 
@@ -421,22 +422,25 @@ async def save_message(data: SaveMessagesRequest, request: Request):
     user_content = data.user_content
     assistant_content = data.assistant_content
 
-    await messages.create_message(pool= pool, message_id=message_id, chat_id=chat_id, user_content=user_content, assistant_content=assistant_content)
-    
     chat = await chats.get_chat(pool=pool, chat_id=chat_id)
+
 
     if chat is None:
         tokens = user_content.split()
         title = " ".join(tokens[:4])
-        await chats.create_chat(pool=pool, chat_id=chat_id, user_id=user_id, title=title)
+
+        await chats.create_chat(pool= pool, chat_id= chat_id, user_id= user_id, title= title)
+
+        await messages.create_message(pool= pool, message_id=message_id, chat_id=chat_id, user_content=user_content, assistant_content=assistant_content)
 
         return {
             "success": True,
             "chat_title": title
         }
-    return {
-        "success": True
-    }
+
+    await messages.create_message(pool= pool, message_id=message_id, chat_id=chat_id, user_content=user_content, assistant_content=assistant_content)
+
+    return {"success": True}
 
  
 @app.delete("/chats/{chat_id}")

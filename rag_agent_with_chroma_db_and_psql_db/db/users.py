@@ -50,10 +50,10 @@ async def get_user_by_id(
         return None
 
     return {
-        "id": row[0],
-        "name": row[1],
-        "email": row[2],
-        "created_at": row[3],
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "created_at": row["created_at"],
     }
 
 
@@ -82,10 +82,10 @@ async def get_user_by_email(
         return None
 
     return {
-        "id": row[0],
-        "name": row[1],
-        "email": row[2],
-        "created_at": row[3],
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "created_at": row["created_at"],
     }
 
 

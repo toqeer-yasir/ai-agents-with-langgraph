@@ -54,10 +54,10 @@ async def get_user_documents(
 
         return [
             {
-                "id": row[0],
-                "filename": row[1],
-                "file_path": row[2],
-                "uploaded_at": row[3],
+                "id": row["id"],
+                "filename": row["filename"],
+                "file_path": row["file_path"],
+                "uploaded_at": row["uploaded_at"],
             }
             for row in rows
         ]
@@ -90,11 +90,11 @@ async def get_document(
             return None
 
         return {
-            "id": row[0],
-            "user_id": row[1],
-            "filename": row[2],
-            "file_path": row[3],
-            "uploaded_at": row[4],
+            "id": row["id"],
+            "user_id": row["user_id"],
+            "filename": row["filename"],
+            "file_path": row["file_path"],
+            "uploaded_at": row["uploaded_at"],
         }
 
 
