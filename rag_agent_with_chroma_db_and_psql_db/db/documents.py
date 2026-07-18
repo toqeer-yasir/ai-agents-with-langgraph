@@ -4,8 +4,7 @@ async def add_document(
     pool,
     document_id: UUID,
     user_id: UUID,
-    filename: str,
-    file_path: str,
+    filename: str
 ):
     async with pool.connection() as conn:    
         async with conn.cursor() as cur:
@@ -15,16 +14,14 @@ async def add_document(
                 INSERT INTO documents (
                     id,
                     user_id,
-                    filename,
-                    file_path
+                    filename
                 )
-                VALUES (%s, %s, %s, %s);
+                VALUES (%s, %s, %s);
                 """,
                 (
                     document_id,
                     user_id,
-                    filename,
-                    file_path,
+                    filename
                 ),
             )
 
@@ -41,7 +38,6 @@ async def get_user_documents(
                 SELECT
                     id,
                     filename,
-                    file_path,
                     uploaded_at
                 FROM documents
                 WHERE user_id = %s
@@ -56,7 +52,6 @@ async def get_user_documents(
             {
                 "id": row["id"],
                 "filename": row["filename"],
-                "file_path": row["file_path"],
                 "uploaded_at": row["uploaded_at"],
             }
             for row in rows
@@ -76,7 +71,6 @@ async def get_document(
                     id,
                     user_id,
                     filename,
-                    file_path,
                     uploaded_at
                 FROM documents
                 WHERE id = %s;
@@ -93,7 +87,6 @@ async def get_document(
             "id": row["id"],
             "user_id": row["user_id"],
             "filename": row["filename"],
-            "file_path": row["file_path"],
             "uploaded_at": row["uploaded_at"],
         }
 
@@ -107,10 +100,7 @@ async def delete_document(
             await cur.execute(
                 """
                 DELETE FROM documents
-                WHERE id = %s
-                RETURNING file_name;
+                WHERE id = %s;
                 """,
                 (document_id,),
-            )
-
-            return await cur.fetchone()
+            )         
