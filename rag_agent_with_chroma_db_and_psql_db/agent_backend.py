@@ -6,10 +6,12 @@ from typing import Annotated
 from pydantic import BaseModel, EmailStr
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from uuid import UUID, uuid4
+
+from pwdlib import PasswordHash
 
 from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage
 from langchain_openrouter import ChatOpenRouter
@@ -30,6 +32,10 @@ from typing_extensions import TypedDict
 
 from tools import get_tools
 
+from rag_pipeline import Rag
+import base64
+
+
 from db import (
     users,
     chats,
@@ -37,6 +43,7 @@ from db import (
     documents
 )
 
+password_hash = PasswordHash.recommended()
 
 load_dotenv()
 
@@ -47,6 +54,10 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 class ChatState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
+
+class Context(TypedDict):
+    user_id: str
+    rag: Rag
 
 def create_chat_node(model_with_tools):
 
@@ -160,7 +171,10 @@ def create_approval_node(RISK_BY_COMMAND, RISK_BY_FLAG):
 
 
 def build_graph(model_with_tools, tools, checkpointer, RISK_BY_COMMAND, RISK_BY_FLAG):
-    builder = StateGraph(ChatState)
+    builder = StateGraph(
+        ChatState,
+        context_schema=Context,
+    )
 
     chat_node = create_chat_node(model_with_tools)
     approval_node = create_approval_node(RISK_BY_COMMAND, RISK_BY_FLAG)
@@ -226,11 +240,14 @@ async def lifespan(app: FastAPI):
         RISK_BY_FLAG=RISK_BY_FLAG,
     )
 
+    rag = Rag()
+
     app.state.pool = pool
     app.state.graph = graph
     app.state.model = model
     app.state.tools = tools
     app.state.mcp_client = mcp_client
+    app.state.rag = rag
 
     yield
 
@@ -261,10 +278,21 @@ class SaveMessagesRequest(BaseModel):
 
 
 class CreateUserRequest(BaseModel):
-    user_id: UUID
     user_name: str
     user_email: EmailStr
+    password: str
 
+
+class AddDocumentRequest(BaseModel):
+    document_id: UUID
+    user_id: UUID
+    filename: str
+    file_content: str
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
 
 
 async def stream_graph_run(websocket: WebSocket, graph, run_input, config, context):
@@ -316,7 +344,10 @@ async def websocket_chat(websocket: WebSocket):
                 run_input = Command(resume={
                     "rejected_tool_ids": rejected_ids
                 })
-                context = {"user_id": data.get("user_id")}
+                context = {
+                    "user_id": data.get("user_id"),
+                    "rag": app.state.rag
+                }
             else:
                 message = data.get("message")
                 if not message:
@@ -326,7 +357,10 @@ async def websocket_chat(websocket: WebSocket):
                     })
                     continue
                 run_input = {"messages": [HumanMessage(content=message)]}
-                context = {"user_id": data.get("user_id")}
+                context = {
+                    "user_id": data.get("user_id"),
+                    "rag": app.state.rag
+                }
 
             try:
                 await stream_graph_run(websocket, websocket.app.state.graph, run_input, config, context)
@@ -358,24 +392,69 @@ async def create_user(data: CreateUserRequest, request: Request):
     user_name = data.user_name
     user_email = data.user_email
 
-    await users.create_user(pool=pool, user_id=user_id, name=user_name, email=user_email)
+    existing_user = await users.get_user_by_email(
+    pool=pool,
+    email=user_email,
+    )
 
+    if existing_user is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="An account with this email already exists.",
+        )
+
+    hashed_password = password_hash.hash(data.password)
+
+    await users.create_user(
+        pool=pool,
+        user_id=user_id,
+        name=user_name,
+        email=user_email,
+        password_hash=hashed_password,
+    )
     return {
         "success": True,
-        "user_id": user_id
+        "user": {
+            "id": user_id,
+            "name": user_name,
+            "email": user_email,
+        },
     }
 
 
-@app.get("/users/by-email/{email}")
-async def get_user_by_email(email: str, request: Request):
+@app.post("/auth/login")
+async def login(data: LoginRequest, request: Request):
     pool = request.app.state.pool
 
-    user_details = await users.get_user_by_email(pool=pool, email=email)
+    user = await users.get_user_by_email(
+        pool=pool,
+        email=data.email,
+    )
 
+    if user is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No account found with this email.",
+        )
+
+    if not password_hash.verify(
+        data.password,
+        user["password_hash"],
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid password.",
+        )
+        
     return {
         "success": True,
-        "user_details": user_details
+        "user": {
+            "id": user["id"],
+            "name": user["name"],
+            "email": user["email"],
+        },
     }
+
 
 @app.delete("/users/{email}")
 async def delete_user_by_email(email: str, request: Request):
@@ -452,6 +531,52 @@ async def delete_user_chat(chat_id: UUID, request: Request):
     return {
         "success": True
     }
+
+
+@app.post("/documents")
+async def add_document(data: AddDocumentRequest, request: Request):
+    pool = request.app.state.pool
+    rag = request.app.state.rag
+    
+    file_bytes = base64.b64decode(data.file_content)
+    
+    await documents.add_document(pool, data.document_id, data.user_id, data.filename) 
+
+    status = await rag.ingest_documents(file_content=file_bytes, filename = data.filename, document_id=data.document_id, user_id=data.user_id)
+
+    return {
+        "success": True,
+        "rag_status": status,
+        "document_id": data.document_id
+    }
+
+
+@app.get("/users/{user_id}/documents")
+async def get_user_documents(user_id: UUID, request: Request):
+    pool = request.app.state.pool
+
+    user_documents = await documents.get_user_documents(pool, user_id=user_id)
+
+    return {
+        "success": True,
+        "documents": user_documents
+    }
+
+
+@app.delete("/users/{user_id}/documents/{document_id}")
+async def delete_document(user_id: UUID, document_id: UUID, request: Request):
+    pool = request.app.state.pool
+    rag = request.app.state.rag
+
+    await documents.delete_document(pool, document_id= document_id) 
+
+    response = rag.delete_documents(user_id = user_id, document_id= document_id)
+
+    return {
+        "success": True,
+        "rag_response": response,
+    }
+
 
 
 if __name__ == "__main__":
