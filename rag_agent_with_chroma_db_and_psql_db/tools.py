@@ -11,9 +11,6 @@ from langchain_tavily import TavilySearch
 
 from langchain.tools import tool
 
-from rag_pipeline import Rag
-my_rag = Rag()
-
 
 async def load_mcp_tools():
     """Load MCP tools asynchronously."""
@@ -24,11 +21,6 @@ async def load_mcp_tools():
                 'command': 'python',
                 'args': ["/home/toqeer-yasir/Documents/repos/ai-agents-with-langgraph/agentic_chatbot/local_mcp_servers/system_info_mcp_server.py"]
             },
-            # 'File System': {
-            #     'transport': 'stdio',
-            #     'command': 'python',
-            #     'args': ["/home/toqeer-yasir/Documents/repos/ai-agents-with-langgraph/agentic_chatbot/local_mcp_servers/filesystem_mcp_server.py"]
-            # },
             'GitHub': {
                 'transport': 'stdio',
                 'command': 'python',
@@ -49,7 +41,8 @@ async def load_mcp_tools():
 async def rag_search(query: str, runtime: ToolRuntime):
     """ Search documents using the RAG retriever. """
     user_id = runtime.context["user_id"]
-    retriever = my_rag.get_retriever(user_id= user_id)
+    rag = runtime.context["rag"]
+    retriever = rag.get_retriever(user_id= user_id)
     docs = await retriever.ainvoke(query)
     return str(docs)
 
