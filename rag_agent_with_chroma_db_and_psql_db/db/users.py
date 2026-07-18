@@ -1,26 +1,30 @@
 from uuid import UUID
 
+
 async def create_user(
     pool,
-    user_id: UUID,
-    name: str,
-    email: str,
+    user_id,
+    name,
+    email,
+    password_hash,
 ):
     async with pool.connection() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
                 """
-                INSERT INTO users (
+                INSERT INTO users(
                     id,
                     name,
-                    email
+                    email,
+                    password_hash
                 )
-                VALUES (%s, %s, %s);
+                VALUES (%s, %s, %s, %s);
                 """,
                 (
                     user_id,
                     name,
                     email,
+                    password_hash,
                 ),
             )
 
@@ -69,7 +73,8 @@ async def get_user_by_email(
                     id,
                     name,
                     email,
-                    created_at
+                    created_at,
+                    password_hash
                 FROM users
                 WHERE email = %s;
                 """,
@@ -85,6 +90,7 @@ async def get_user_by_email(
         "id": row["id"],
         "name": row["name"],
         "email": row["email"],
+        "password_hash": row["password_hash"],
         "created_at": row["created_at"],
     }
 
