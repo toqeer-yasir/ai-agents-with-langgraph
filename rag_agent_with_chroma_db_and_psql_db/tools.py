@@ -57,4 +57,4 @@ online_search = TavilySearch(
 
 async def get_tools():
     mcp_tools, mcp_client = await load_mcp_tools()
-    return list(mcp_tools) + [rag_search] + [online_search], mcp_client
+    return list(mcp_tools) + [rag_search, online_search], mcp_client
